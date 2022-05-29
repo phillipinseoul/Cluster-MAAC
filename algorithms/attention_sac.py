@@ -40,6 +40,7 @@ class AttentionSAC(object):
                                       hidden_dim=pol_hidden_dim,
                                       **params)
                          for params in agent_init_params]
+        
         self.critic = AttentionCritic(sa_size, hidden_dim=critic_hidden_dim, attend_heads=attend_heads)
         
         self.target_critic = AttentionCritic(sa_size, hidden_dim=critic_hidden_dim,
@@ -95,7 +96,11 @@ class AttentionSAC(object):
         trgt_critic_in = list(zip(next_obs, next_acs))
         critic_in = list(zip(obs, acs))
         next_qs = self.target_critic(trgt_critic_in)
+
+        #################### TODO: add cluster critic ####################
         critic_rets = self.critic(critic_in, regularize=True, logger=logger, niter=self.niter)
+        #################### TODO: add cluster critic ####################
+
         q_loss = 0
 
         for a_i, nq, log_pi, (pq, regs) in zip(range(self.nagents), next_qs, next_log_pis, critic_rets):
@@ -108,12 +113,22 @@ class AttentionSAC(object):
             for reg in regs:
                 q_loss += reg  # regularizing attention
 
-        q_loss.backward()
-        self.critic.scale_shared_grads()
+        q_loss.backward(retain_graph=True)
+        # q_loss.backward()
+        
+        ######## TODO: needs debugging on shared_grads (05/30 Yuseung) ########
+        # self.critic.scale_shared_grads()
+        # self.critic.cluster_critic.scale_shared_grads()
+        ######## TODO: needs debugging on shared_grads (05/30 Yuseung) ########
+
         grad_norm = torch.nn.utils.clip_grad_norm(
             self.critic.parameters(), 10 * self.nagents)
+        
         self.critic_optimizer.step()
+        self.critic.cluster_critic_optimizer.step()
+
         self.critic_optimizer.zero_grad()
+        self.critic.cluster_critic_optimizer.zero_grad()
 
         if logger is not None:
             logger.add_scalar('losses/q_loss', q_loss, self.niter)
@@ -140,6 +155,7 @@ class AttentionSAC(object):
 
         critic_in = list(zip(obs, samp_acs))
         critic_rets = self.critic(critic_in, return_all_q=True)
+
         for a_i, probs, log_pi, pol_regs, (q, all_q) in zip(range(self.nagents), all_probs,
                                                             all_log_pis, all_pol_regs,
                                                             critic_rets):
@@ -152,6 +168,7 @@ class AttentionSAC(object):
                 pol_loss = (log_pi * (-pol_target).detach()).mean()
             for reg in pol_regs:
                 pol_loss += 1e-3 * reg  # policy regularization
+
             # don't want critic to accumulate gradients from policy loss
             disable_gradients(self.critic)
             pol_loss.backward()
