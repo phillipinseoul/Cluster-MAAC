@@ -117,11 +117,11 @@ class AttentionSAC(object):
         # q_loss.backward()
         
         ######## TODO: needs debugging on shared_grads (05/30 Yuseung) ########
-        # self.critic.scale_shared_grads()
-        # self.critic.cluster_critic.scale_shared_grads()
+        self.critic.scale_shared_grads()
+        self.critic.cluster_critic.scale_shared_grads()
         ######## TODO: needs debugging on shared_grads (05/30 Yuseung) ########
 
-        grad_norm = torch.nn.utils.clip_grad_norm(
+        grad_norm = torch.nn.utils.clip_grad_norm_(
             self.critic.parameters(), 10 * self.nagents)
         
         self.critic_optimizer.step()
@@ -174,7 +174,7 @@ class AttentionSAC(object):
             pol_loss.backward()
             enable_gradients(self.critic)
 
-            grad_norm = torch.nn.utils.clip_grad_norm(
+            grad_norm = torch.nn.utils.clip_grad_norm_(
                 curr_agent.policy.parameters(), 0.5)
             curr_agent.policy_optimizer.step()
             curr_agent.policy_optimizer.zero_grad()
