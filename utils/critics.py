@@ -18,7 +18,7 @@ class AttentionCritic(nn.Module):
     observations and actions.
     """
     def __init__(self, sa_sizes, n_clusters=5,
-                    hidden_dim=32, norm_in=True, attend_heads=1):
+                    hidden_dim=32, norm_in=True, attend_heads=1, clster_list= None):
         """
         Inputs:
             sa_sizes (list of (int, int)): Size of state and action spaces per
@@ -79,12 +79,12 @@ class AttentionCritic(nn.Module):
                                self.value_extractors, self.critic_encoders]
 
         '''Init ClusterCritic for cluster attention (05/27 Yuseung)'''
-        self.n_clusters = n_clusters
+
+                        
+
 
         '''TODO: implememt clustering (05/28)'''
-        self.cluster_list = {0: [0, 1, 2, 3, 4],
-                            1: [5, 6, 7, 8, 9],
-                            2: [10, 11, 12, 13, 14]}
+        self.cluster_list = clster_list
 
         self.cluster_critic = ClusterCritic(sa_sizes=self.sa_sizes,
                                             cluster_list=self.cluster_list,
