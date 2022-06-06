@@ -97,7 +97,10 @@ class ClusterCritic(nn.Module):
         gradients from the critic loss function multiple times
         """
         for p in self.shared_parameters():
-            p.grad.data.mul_(1. / self.n_clusters)
+            if p.grad == None:
+                p.data.mul_(1. / self.n_clusters)
+            else:
+                p.grad.data.mul_(1. / self.n_clusters)
 
     def calculateAttention(self, cluster_list, queryHeads, keyHeads, valueHeads):
         clst_attention_values = [[] for _ in range(len(cluster_list))]

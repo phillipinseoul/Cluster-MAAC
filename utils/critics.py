@@ -18,7 +18,7 @@ class AttentionCritic(nn.Module):
     observations and actions.
     """
     def __init__(self, sa_sizes, n_clusters=5,
-                    hidden_dim=32, norm_in=True, attend_heads=1):
+                    hidden_dim=32, norm_in=True, attend_heads=1, clster_list= None):
         """
         Inputs:
             sa_sizes (list of (int, int)): Size of state and action spaces per
@@ -31,6 +31,7 @@ class AttentionCritic(nn.Module):
         super(AttentionCritic, self).__init__()
         assert (hidden_dim % attend_heads) == 0
         self.sa_sizes = sa_sizes
+        self.n_clusters = n_clusters
         self.nagents = len(sa_sizes)
         self.attend_heads = attend_heads
 
@@ -75,16 +76,21 @@ class AttentionCritic(nn.Module):
             self.selector_extractors.append(nn.Linear(hidden_dim, attend_dim, bias=False))
             self.value_extractors.append(nn.Sequential(nn.Linear(hidden_dim, attend_dim), nn.LeakyReLU()))
 
+        """
+        MAAC paper p.4
+        Note that the weights for extracting selectors, keys, and values are 
+        shared across all agents, which encourages a common embedding space
+        """
         self.shared_modules = [self.key_extractors, self.selector_extractors,
                                self.value_extractors, self.critic_encoders]
 
         '''Init ClusterCritic for cluster attention (05/27 Yuseung)'''
-        self.n_clusters = n_clusters
+
+                        
+
 
         '''TODO: implememt clustering (05/28)'''
-        self.cluster_list = {0: [0, 1, 2, 3, 4],
-                            1: [5, 6, 7, 8, 9],
-                            2: [10, 11, 12, 13, 14]}
+        self.cluster_list = clster_list
 
         self.cluster_critic = ClusterCritic(sa_sizes=self.sa_sizes,
                                             cluster_list=self.cluster_list,
@@ -107,9 +113,11 @@ class AttentionCritic(nn.Module):
         Scale gradients for parameters that are shared since they accumulate
         gradients from the critic loss function multiple times
         """
-        for p in self.shared_parameters():
-            p.grad.data.mul_(1. / self.nagents)
-
+        for idx, p in enumerate(self.shared_parameters()):
+            if p.grad == None:
+                p.data.mul_(1. / self.nagents)
+            else:
+                p.grad.data.mul_(1. / self.nagents)
     """
     queryHeads : list of query values for each attention head (list of list of queries)
     """
@@ -208,28 +216,49 @@ class AttentionCritic(nn.Module):
 
         for i in range(self.nagents):
             for j in range(self.attend_heads):
-                clst_logits_extended[i].append(temp_logits)
-                clst_probs_extended[i].append(temp_probs)
+                # Bug!) pushing the same reference into the list
+                # -> all tensors are actually the same single tensor, so updates are shared
+                # clst_logits_extended[i].append(temp_logits)
+                # clst_probs_extended[i].append(temp_probs)
+                
+                # must copy and append
+                clst_logits_extended[i].append(temp_logits.detach().clone())
+                clst_probs_extended[i].append(temp_probs.detach().clone())
 
-        # extend the cluster attentions to agent attentions
-        for clst_idx, c_agents in self.cluster_list.items():
+        # Extend the cluster attentions to agent attentions 
+        # (in order to match the dimensions for later computation: combine agents & cluster attention)
+        # Goal) Assume agentA is in clusterA and agentB in clusterB -> agentA ~ agentB attention == clstA ~ clstB attention
+        for current_clst, c_agents in self.cluster_list.items():
             for i_head in range(self.attend_heads):
-                other_clst = 0
-                for n in self.cluster_list.keys():
-                    if n == clst_idx:       # weight between two agents in the same clster: 1.0
+                for other_clst, other_clst_agents in self.cluster_list.items():
+                    # weight between two agents in the same clster: 1.0
+                    if current_clst == other_clst:
                         continue
 
-                    for a_c in self.cluster_list[other_clst]:
-                        for c_agent in c_agents:
-                            if c_agent > a_c:
-                                c_agent -= 1
+                    # print(f"[{i_head}] cluster change : cluster#{current_clst} -> #{other_clst}")
 
-                            clst_logits_extended[a_c][i_head][:, :, c_agent] = clst_attend_logits[clst_idx][i_head][:, :, other_clst]
-                            clst_probs_extended[a_c][i_head][:, :, c_agent] = clst_attend_probs[clst_idx][i_head][:, :, other_clst]
-                    other_clst += 1
+                    # exclude myself from Attention vector index
+                    # ex) 15 agents -> attention vec size 14
+                    if current_clst < other_clst:
+                        other_clst -= 1
 
+                    for current_agent in c_agents:
+                        for other_agent in other_clst_agents:
+                            assert other_agent not in self.cluster_list[current_clst]
+                            # print(f"attention btw agent#{current_agent} ~ #{other_agent}")
+
+                            # Q. What is this for?
+                            # > For agents that appear after me, exclude myself from attention vector index value by subtracting 1
+                            if current_agent < other_agent:
+                                other_agent -= 1
+
+                            # Q. just assign? not add? -> each cell is accessed and copied only once
+                            # clst_logits_extended[a_c][i_head][:, :, c_agent] = clst_attend_logits[clst_idx][i_head][:, :, other_clst]
+                            # clst_probs_extended[a_c][i_head][:, :, c_agent] = clst_attend_probs[clst_idx][i_head][:, :, other_clst]
+                            clst_probs_extended[current_agent][i_head][:, :, other_agent] = clst_attend_probs[current_clst][i_head][:, :, other_clst]
+                            clst_logits_extended[current_agent][i_head][:, :, other_agent] = clst_attend_logits[current_clst][i_head][:, :, other_clst]
+                            # Why not 1? Shouldn't clst_probs_extended[0][0][0][0][0~4] be changed and stay as 1?
         ########### TODO: extend the cluster attentions to agent attentions  ###########
-
 
         '''add agent_attention_values and clst_attention_values (05/28)'''
         # tot_attention_values = []
@@ -237,15 +266,16 @@ class AttentionCritic(nn.Module):
         tot_attend_probs = [[] for i in range(self.nagents)]
         tot_attention_values = [[] for i in range(self.nagents)]
 
+        # Combine agents & cluster attention - use cluster attention_probs as multipliers to the agent attention_probs
         for i_heads in range(self.attend_heads):
-            for i, a_i in enumerate(self.agents):
-                clst_idx = [k for k, v in self.cluster_list.items() if a_i in v][0]
+            for agentN in self.agents:
+                # clst_idx = [clst for clst, clst_agents in self.cluster_list.items() if agentN in clst_agents][0]
 
                 '''TODO: How to add attend_log of agents and cluster?'''
-                tot_attend_prob = agent_attend_probs[i][i_heads] * torch.exp(1 + clst_probs_extended[i][i_heads])
+                tot_attend_prob = agent_attend_probs[agentN][i_heads] * torch.exp(1 + clst_probs_extended[agentN][i_heads])
                 tot_attend_prob = F.softmax(tot_attend_prob, dim=2)
 
-                tot_attend_probs[i].append(tot_attend_prob)
+                tot_attend_probs[agentN].append(tot_attend_prob)
 
         # calculate tot_attention_value with tot_attend_logits, tot_attend_probs
         for i_head, curr_head_keys, curr_head_values, curr_head_selectors in zip(

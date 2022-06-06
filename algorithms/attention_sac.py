@@ -4,6 +4,12 @@ from torch.optim import Adam
 from utils.misc import soft_update, hard_update, enable_gradients, disable_gradients
 from utils.agents import AttentionAgent
 from utils.critics import AttentionCritic
+from utils.clustering import init_cluster_list
+
+# Please fix the values in 'simple_tag.py' manually
+PREY = 12 # Good agents
+PREDATOR = 6 # Adversary agents
+OBSTACLES = 0 # obstacles
 
 MSELoss = torch.nn.MSELoss()
 
@@ -16,7 +22,7 @@ class AttentionSAC(object):
                  gamma=0.95, tau=0.01, pi_lr=0.01, q_lr=0.01,
                  reward_scale=10.,
                  pol_hidden_dim=128,
-                 critic_hidden_dim=128, attend_heads=4,
+                 critic_hidden_dim=128, attend_heads=4, cluster_list=None,
                  **kwargs):
         """
         Inputs:
@@ -36,15 +42,17 @@ class AttentionSAC(object):
         """
         self.nagents = len(sa_size)
 
+        self.clluster_list = cluster_list
+
         self.agents = [AttentionAgent(lr=pi_lr,
                                       hidden_dim=pol_hidden_dim,
                                       **params)
                          for params in agent_init_params]
         
-        self.critic = AttentionCritic(sa_size, hidden_dim=critic_hidden_dim, attend_heads=attend_heads)
+        self.critic = AttentionCritic(sa_size, n_clusters=len(cluster_list), hidden_dim=critic_hidden_dim, attend_heads=attend_heads, clster_list=self.clluster_list)
         
-        self.target_critic = AttentionCritic(sa_size, hidden_dim=critic_hidden_dim,
-                                             attend_heads=attend_heads)
+        self.target_critic = AttentionCritic(sa_size, n_clusters=len(cluster_list), hidden_dim=critic_hidden_dim,
+                                             attend_heads=attend_heads, clster_list=self.clluster_list)
         hard_update(self.target_critic, self.critic)
         self.critic_optimizer = Adam(self.critic.parameters(), lr=q_lr,
                                      weight_decay=1e-3)
@@ -117,11 +125,11 @@ class AttentionSAC(object):
         # q_loss.backward()
         
         ######## TODO: needs debugging on shared_grads (05/30 Yuseung) ########
-        # self.critic.scale_shared_grads()
-        # self.critic.cluster_critic.scale_shared_grads()
+        self.critic.scale_shared_grads()
+        self.critic.cluster_critic.scale_shared_grads()
         ######## TODO: needs debugging on shared_grads (05/30 Yuseung) ########
 
-        grad_norm = torch.nn.utils.clip_grad_norm(
+        grad_norm = torch.nn.utils.clip_grad_norm_(
             self.critic.parameters(), 10 * self.nagents)
         
         self.critic_optimizer.step()
@@ -174,7 +182,7 @@ class AttentionSAC(object):
             pol_loss.backward()
             enable_gradients(self.critic)
 
-            grad_norm = torch.nn.utils.clip_grad_norm(
+            grad_norm = torch.nn.utils.clip_grad_norm_(
                 curr_agent.policy.parameters(), 0.5)
             curr_agent.policy_optimizer.step()
             curr_agent.policy_optimizer.zero_grad()
@@ -268,6 +276,15 @@ class AttentionSAC(object):
                                       'num_out_pol': acsp.n})
             sa_size.append((obsp.shape[0], acsp.n))
 
+        '''init clustering list divided by each agent's role (Taeyeong) '''
+
+        # [Important] adjust number of cluster
+
+
+
+
+        cluster_lists = init_cluster_list(env, PREY, PREDATOR, n_obs = OBSTACLES)
+
         init_dict = {'gamma': gamma, 'tau': tau,
                      'pi_lr': pi_lr, 'q_lr': q_lr,
                      'reward_scale': reward_scale,
@@ -275,7 +292,8 @@ class AttentionSAC(object):
                      'critic_hidden_dim': critic_hidden_dim,
                      'attend_heads': attend_heads,
                      'agent_init_params': agent_init_params,
-                     'sa_size': sa_size}
+                     'sa_size': sa_size,
+                     'cluster_list' : cluster_lists[0]}
         instance = cls(**init_dict)
         instance.init_dict = init_dict
         return instance
@@ -297,3 +315,6 @@ class AttentionSAC(object):
             instance.target_critic.load_state_dict(critic_params['target_critic'])
             instance.critic_optimizer.load_state_dict(critic_params['critic_optimizer'])
         return instance
+
+
+
