@@ -6,6 +6,11 @@ from utils.agents import AttentionAgent
 from utils.critics import AttentionCritic
 from utils.clustering import init_cluster_list
 
+# Please fix the values in 'simple_tag.py' manually
+PREY = 12 # Good agents
+PREDATOR = 6 # Adversary agents
+OBSTACLES = 0 # obstacles
+
 MSELoss = torch.nn.MSELoss()
 
 class AttentionSAC(object):
@@ -44,10 +49,10 @@ class AttentionSAC(object):
                                       **params)
                          for params in agent_init_params]
         
-        self.critic = AttentionCritic(sa_size, hidden_dim=critic_hidden_dim, attend_heads=attend_heads, cluster_list=self.clluster_list)
+        self.critic = AttentionCritic(sa_size, n_clusters=len(cluster_list), hidden_dim=critic_hidden_dim, attend_heads=attend_heads, clster_list=self.clluster_list)
         
-        self.target_critic = AttentionCritic(sa_size, hidden_dim=critic_hidden_dim,
-                                             attend_heads=attend_heads, cluster_list=self.clluster_list)
+        self.target_critic = AttentionCritic(sa_size, n_clusters=len(cluster_list), hidden_dim=critic_hidden_dim,
+                                             attend_heads=attend_heads, clster_list=self.clluster_list)
         hard_update(self.target_critic, self.critic)
         self.critic_optimizer = Adam(self.critic.parameters(), lr=q_lr,
                                      weight_decay=1e-3)
@@ -278,7 +283,7 @@ class AttentionSAC(object):
 
 
 
-        cluster_lists = init_cluster_list(env)
+        cluster_lists = init_cluster_list(env, PREY, PREDATOR, n_obs = OBSTACLES)
 
         init_dict = {'gamma': gamma, 'tau': tau,
                      'pi_lr': pi_lr, 'q_lr': q_lr,

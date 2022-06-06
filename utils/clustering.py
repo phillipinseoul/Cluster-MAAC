@@ -2,7 +2,6 @@
 from sklearn.cluster import KMeans
 from collections import defaultdict
 
-
 def cluster_agents(agents, positions, n_label):
     '''
     - input: 
@@ -20,20 +19,15 @@ def cluster_agents(agents, positions, n_label):
     for label , index in zip(kmeans.labels_, agents):
         cluster_list[label].append(index)
 
-    cluster_list = dict(map(lambda kv: (kv[0], kv[1].sort()), cluster_list.iteritems()))
+    cluster_list = {clst : sorted(agentList) for clst, agentList in cluster_list.items()}
 
     return cluster_list
 
 '''make cluster list by role'''
 
 def init_cluster_list(env, n_good, n_adv , n_obs = 2):
-
     cluster_lists = []
     obs = env.reset()
-
-    nagents = len(env.action_space)
-
-    OTHER_OFFSET = 4 + n_obs * 2
 
     agent_list = []
     for rolloutNum, arr in enumerate(obs):
@@ -41,43 +35,39 @@ def init_cluster_list(env, n_good, n_adv , n_obs = 2):
         good_agents={}
         adv_agents={}
 
-        agent_obs = arr[0]
+        # agent_obs = arr[0]
 
-        for idx in range(1,nagents): # all other agents except me
-
-                relX = agent_obs[OTHER_OFFSET + 2*idx] # other pos X (relative)
-                relY = agent_obs[OTHER_OFFSET + 2*idx + 1] # other pos Y (relative)
-                    
-                if env.agent_types[idx] == 'agent':
-                    good_agents[idx] = (relX,relY)
-                else:
-                    adv_agents[idx] = (relX,relY)
+        for agentNum, agent_obs in enumerate(arr):
+        # for idx in range(1,nagents):
+            myX = agent_obs[2] # my pos X
+            myY = agent_obs[3] # my pos Y
+                
+            if env.agent_types[agentNum] == 'agent':
+                good_agents[agentNum] = (myX, myY)
+            else:
+                adv_agents[agentNum] = (myX, myY)
         
         agent_list.append((good_agents, adv_agents))
 
 
-
-
     for rolloutNum, (good_agents, adv_agents) in enumerate(agent_list):
-        good_cluster = cluster_agents(good_agents.keys(),good_agents.values() , n_good)
-        adv_cluster = cluster_agents(adv_agents.keys(),adv_agents.values(), n_adv)
-
+        good_cluster = cluster_agents(good_agents.keys(), list(good_agents.values()), n_good // 3)
+        adv_cluster = cluster_agents(adv_agents.keys(), list(adv_agents.values()), n_adv // 3)
 
         ''' add if there ere  exists empty list in clusterlist'''
 
-        for i in range(n_good):
-            if i not in good_cluster.keys():
-                good_cluster[i] = []
+        # merge good/adv clusters into one list
+        idx = 0
+        tmp = dict()
 
-        for i in range(n_adv):
-            if not i in adv_cluster.keys():
-                adv_cluster[i] = []
+        for clst, agentList in adv_cluster.items():
+            tmp[idx] = agentList
+            idx += 1
 
+        for clst, agentList in good_cluster.items():
+            tmp[idx] = agentList
+            idx += 1
 
-
-        for k,v in good_cluster.keys():
-            good_cluster[n_adv + k] = good_cluster.pop(k) 
-        cluster_list =  adv_cluster.update(good_cluster)
-        cluster_lists.append(cluster_list)
+        cluster_lists.append(tmp)
       
     return cluster_lists

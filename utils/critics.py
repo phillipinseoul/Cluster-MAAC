@@ -31,6 +31,7 @@ class AttentionCritic(nn.Module):
         super(AttentionCritic, self).__init__()
         assert (hidden_dim % attend_heads) == 0
         self.sa_sizes = sa_sizes
+        self.n_clusters = n_clusters
         self.nagents = len(sa_sizes)
         self.attend_heads = attend_heads
 
