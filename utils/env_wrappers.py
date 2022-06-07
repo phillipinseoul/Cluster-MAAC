@@ -4,11 +4,16 @@ Modified from OpenAI Baselines code to work with multi-agent envs
 import numpy as np
 from multiprocessing import Process, Pipe
 from baselines.common.vec_env import VecEnv, CloudpickleWrapper
+import matplotlib.pyplot as plt
+import os
 
+'''save the environment image for every render_freq episodes!'''
+RENDER_FREQ = 50
 
 def worker(remote, parent_remote, env_fn_wrapper):
     parent_remote.close()
     env = env_fn_wrapper.x()
+
     while True:
         cmd, data = remote.recv()
         if cmd == 'step':
@@ -33,6 +38,8 @@ def worker(remote, parent_remote, env_fn_wrapper):
                              env.agents])
             else:
                 remote.send(['agent' for _ in env.agents])
+        elif cmd == 'render':
+            remote.send(env.render(mode='rgb_array'))
         else:
             raise NotImplementedError
 
@@ -81,6 +88,24 @@ class SubprocVecEnv(VecEnv):
             remote.send(('reset_task', None))
         return np.stack([remote.recv() for remote in self.remotes])
 
+    '''added rendering code for env (Yuseung 06/07)'''
+    def render(self, first_epi, last_epi, render_path):
+        i = 0
+        for ep in range(first_epi, last_epi):
+            if ep % RENDER_FREQ == 0:
+                self.remotes[i].send(('render', None))
+                img = self.remotes[i].recv()
+                plt.imshow(np.squeeze(img))
+                plt.savefig(os.path.join(render_path, 'episode_%d.png' % ep))
+            i += 1
+        
+        '''
+        self.remotes[0].send(('render', None))
+        img = self.remotes[0].recv()
+        plt.imshow(np.squeeze(img))
+        plt.savefig('rendered_env.png')
+        '''
+
     def close(self):
         if self.closed:
             return
@@ -109,6 +134,14 @@ class DummyVecEnv(VecEnv):
 
     def step_async(self, actions):
         self.actions = actions
+
+    '''added rendering code for env (Yuseung 06/07)'''
+    def render(self, first_epi, last_epi, render_path):
+        if first_epi % RENDER_FREQ == 0:
+            env = self.envs[0]
+            img = env.render(mode='rgb_array')
+            plt.imshow(np.squeeze(img))
+            plt.savefig(os.path.join(render_path, 'episode_%d.png' % first_epi))
 
     def step_wait(self):
         results = [env.step(a) for (a,env) in zip(self.actions, self.envs)]

@@ -44,6 +44,9 @@ def run(config):
     os.makedirs(log_dir)
     logger = SummaryWriter(str(log_dir))
 
+    render_dir = run_dir / 'rendered_images'
+    os.makedirs(render_dir)
+
     torch.manual_seed(run_num)
     np.random.seed(run_num)
 
@@ -69,6 +72,8 @@ def run(config):
         print("Episodes %i-%i of %i" % (ep_i + 1,
                                         ep_i + 1 + config.n_rollout_threads,
                                         config.n_episodes))
+
+        env.render(ep_i + 1, ep_i + 1 + config.n_rollout_threads, render_dir)   # save the image of the current environment
 
         obs = env.reset()
         model.prep_rollouts(device='cpu')

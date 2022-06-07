@@ -3,6 +3,7 @@ models
 fig_data
 notebooks
 multi_run*
+rendered_images/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
