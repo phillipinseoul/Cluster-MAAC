@@ -25,6 +25,13 @@ pip install -e .
 ```
 
 ## How to Run 
+
+#### Warning! Running on SSH Server without GUI
+* Write 'xvfb-run -a' before your commands.
+```shell
+xvfb-run -a python run_simple_tag.py ex --use_gpu
+```
+
 #### 1. Run Simple Tag 
 * Environment: [Simple Tag (PettingZoo)](https://www.pettingzoo.ml/mpe/simple_tag)
 ```shell
