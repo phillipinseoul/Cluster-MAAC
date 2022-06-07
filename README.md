@@ -1,17 +1,37 @@
-# Experiments for applying MAAC on Multi Particle Environments (PettingZoo)
+# C-MAAC: Cluster-based Actor-Attention-Critic for Multi-Agent Reinforcement Learning (Temporary)
+Project for KAIST CS470: Introduction to Artifical Intelligence (Spring 22') by Hyuncheol Park, Taeyeong Lee, Yuseung Lee and Jongjun Park. This work is an extension of the [original MAAC (Iqbal et al., ICML 2019)](https://arxiv.org/abs/1810.02912) and the baseline codes for MAAC was forked from the [official repository](https://github.com/shariqiqbal2810/MAAC).
 
-## How to Run (by Yuseung Lee)
+## Requirements
+#### 1. Install the packages in requirement.txt
+```shell
+pip install -r requirements.txt 
+```
+
+#### 2. Install OpenAI Baselines
+* From https://github.com/openai/baselines
+* Since Baselines automatically installs gym==0.15.7, you may need to uninstall this version and reinstall gym==0.9.4.
+```shell
+git clone https://github.com/openai/baselines.git
+cd baselines
+pip install -e .
+```
+
+#### 3. Install Multi-Agent Particle Environment
+* From https://github.com/shariqiqbal2810/multiagent-particle-envs
+```shell
+git clone https://github.com/shariqiqbal2810/multiagent-particle-envs.git
+cd multi-agents-envs
+pip install -e .
+```
+
+## How to Run 
 #### 1. Run Simple Tag 
-* [Simple Tag (PettingZoo)](https://www.pettingzoo.ml/mpe/simple_tag)
+* Environment: [Simple Tag (PettingZoo)](https://www.pettingzoo.ml/mpe/simple_tag)
 ```shell
 python run_simple_tag.py test_1
 ```
 * Experiment 1. Good=10, Adversary=5, Landmark=0
 * Experiment 2. Good=5, Adversary=10, Landmark=0
-##### Configurations
-* n_rollout_threads: 10
-* n_episodes: 50000
-* episode_length: 25
 
 #### 2. Run Simple Adversary 
 * [Simple Adversary (PettingZoo)](https://www.pettingzoo.ml/mpe/simple_adversary)
@@ -20,54 +40,3 @@ python run_simple_adversary.py test_1
 ```
 * Experiment 1. Good=10, Adversary=5, Landmarks=3
 * Experiment 2. Good=5, Adversary=10, Landmarks=3
-##### Configurations
-* n_rollout_threads: 3
-* n_episodes: 10000
-* episode_length: 25
-
-
-# Multi-Actor-Attention-Critic
-Code for [*Actor-Attention-Critic for Multi-Agent Reinforcement Learning*](https://arxiv.org/abs/1810.02912) (Iqbal and Sha, ICML 2019)
-
-## Requirements
-* Python 3.6.1 (Minimum)
-* [OpenAI baselines](https://github.com/openai/baselines), commit hash: 98257ef8c9bd23a24a330731ae54ed086d9ce4a7
-* My [fork](https://github.com/shariqiqbal2810/multiagent-particle-envs) of Multi-agent Particle Environments
-* [PyTorch](http://pytorch.org/), version: 0.3.0.post4
-* [OpenAI Gym](https://github.com/openai/gym), version: 0.9.4
-* [Tensorboard](https://github.com/tensorflow/tensorboard), version: 0.4.0rc3 and [Tensorboard-Pytorch](https://github.com/lanpa/tensorboard-pytorch), version: 1.0 (for logging)
-
-The versions are just what I used and not necessarily strict requirements.
-
-## How to Run
-
-All training code is contained within `main.py`. To view options simply run:
-
-```shell
-python main.py --help
-```
-The "Cooperative Treasure Collection" environment from our paper is referred to as `fullobs_collect_treasure` in this repo, and "Rover-Tower" is referred to as `multi_speaker_listener`.
-
-In order to match our experiments, the maximum episode length should be set to 100 for Cooperative Treasure Collection and 25 for Rover-Tower.
-
-## Citing our work
-
-If you use this repo in your work, please consider citing the corresponding paper:
-
-```bibtex
-@InProceedings{pmlr-v97-iqbal19a,
-  title =    {Actor-Attention-Critic for Multi-Agent Reinforcement Learning},
-  author =   {Iqbal, Shariq and Sha, Fei},
-  booktitle =    {Proceedings of the 36th International Conference on Machine Learning},
-  pages =    {2961--2970},
-  year =     {2019},
-  editor =   {Chaudhuri, Kamalika and Salakhutdinov, Ruslan},
-  volume =   {97},
-  series =   {Proceedings of Machine Learning Research},
-  address =      {Long Beach, California, USA},
-  month =    {09--15 Jun},
-  publisher =    {PMLR},
-  pdf =      {http://proceedings.mlr.press/v97/iqbal19a/iqbal19a.pdf},
-  url =      {http://proceedings.mlr.press/v97/iqbal19a.html},
-}
-```

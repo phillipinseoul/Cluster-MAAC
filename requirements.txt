@@ -1,0 +1,11 @@
+# pytorch==1.4.0
+# tensorflow==1.14.0 # (1.4+)
+pytorch
+tensorflow
+gym==0.9.4
+tensorboardX
+sklearn
+seaborn
+# multiagent-particle-envs from https://github.com/shariqiqbal2810/multiagent-particle-envs
+# openai baselines from https://github.com/openai/baselines.git@ea25b9e8b234e6ee1bca43083f8f3cf974143998#egg=baselines
+
