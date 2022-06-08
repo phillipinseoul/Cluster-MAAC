@@ -272,7 +272,8 @@ class AttentionCritic(nn.Module):
                 # clst_idx = [clst for clst, clst_agents in self.cluster_list.items() if agentN in clst_agents][0]
 
                 '''TODO: How to add attend_log of agents and cluster?'''
-                tot_attend_prob = agent_attend_probs[agentN][i_heads] * torch.exp(1 + clst_probs_extended[agentN][i_heads])
+                # tot_attend_prob = agent_attend_probs[agentN][i_heads] * torch.exp(1 + clst_probs_extended[agentN][i_heads])
+                tot_attend_prob = clst_probs_extended[agentN][i_heads] # cluster attention only; consider only the cluster attention
                 tot_attend_prob = F.softmax(tot_attend_prob, dim=2)
 
                 tot_attend_probs[agentN].append(tot_attend_prob)
