@@ -10,7 +10,7 @@ from utils.clustering import cluster_agents
 from .cluster_critics import ClusterCritic
 
 cluster_critic_lr = 0.001
-USE_CLUSTER = True
+USE_CLUSTER = False
 
 class AttentionCritic(nn.Module):
     """
@@ -285,19 +285,12 @@ class AttentionCritic(nn.Module):
                 keys = [k for j, k in enumerate(curr_head_keys) if j != a_i]
                 values = [v for j, v in enumerate(curr_head_values) if j != a_i]
                 
-                """
-                # For debugging
-                a = torch.stack(values).permute(1, 2, 0)
-                b = tot_attend_probs[i][i_head]
-                c = a * b
-                d = c.sum(dim=2)
-                """
-                
                 # tot_attention_value = (torch.stack(values).permute(1, 2, 0) *
                 #                     tot_attend_probs[i][i_head]).sum(dim=2)
                 tot_attention_value = (torch.stack(values).permute(1, 2, 0) *
                                     agent_attend_probs[i][i_head] * 
                                     clst_probs_extended[i][i_head]).sum(dim=2)
+                                    
                 tot_attention_values[i].append(tot_attention_value)
 
         for i_head in range(len(all_head_selectors)):
@@ -306,7 +299,7 @@ class AttentionCritic(nn.Module):
 
         '''TODO: How should combine logits?'''
         # tot_attend_logits = (agent_attend_logits + clst_logits_extended) / 2.0
-        tot_attend_logits = agent_attend_logits
+        tot_attend_logits = agent_attend_logits  + clst_logits_extended
 
         if not USE_CLUSTER:
             tot_attention_values = agent_attention_values
