@@ -25,7 +25,7 @@ def make_parallel_env(env_id, n_rollout_threads, seed):
         return SubprocVecEnv([get_env_fn(i) for i in range(n_rollout_threads)])
 
 def run(config):
-    model_dir = Path('../maac-MPE/models') / config.env_id / config.model_name
+    model_dir = Path('./models') / config.env_id / config.model_name
     
     if not model_dir.exists():
         run_num = 1
@@ -114,29 +114,9 @@ def run(config):
         ep_rews = replay_buffer.get_average_rewards(
             config.episode_length * config.n_rollout_threads)
 
-        # sum up the rewards for each type of agent!
-        predator_reward_sum = 0
-        prey_reward_sum = 0
-        num_adversaries = 5
-
         for a_i, a_ep_rew in enumerate(ep_rews):
-            if a_i < num_adversaries:
-                predator_reward_sum += a_ep_rew * config.episode_length
-            else:
-                prey_reward_sum += a_ep_rew * config.episode_length
-
             logger.add_scalar('agent%i/mean_episode_rewards' % a_i,
                               a_ep_rew * config.episode_length, ep_i)
-
-        logger.add_scalar('predator_reward_sum', predator_reward_sum, ep_i)
-        logger.add_scalar('prey_reward_sum', prey_reward_sum, ep_i)
-        logger.add_scalar('total_reward_sum', prey_reward_sum + predator_reward_sum, ep_i)
-
-        # compare reward sum of predator vs. prey
-        logger.add_scalars(f'reward_sum', {
-            'predator': predator_reward_sum,
-            'prey': prey_reward_sum,
-        }, ep_i)
 
         if ep_i % config.save_interval < config.n_rollout_threads:
             model.prep_rollouts(device='cpu')
@@ -155,7 +135,7 @@ if __name__ == '__main__':
     parser.add_argument("model_name",
                         help="Name of directory to store " +
                              "model/training contents")
-    parser.add_argument("--env_id", help="Name of environment", default="simple_tag")
+    parser.add_argument("--env_id", help="Name of environment", default="simple_spread")
     parser.add_argument("--n_rollout_threads", default=5, type=int)
     parser.add_argument("--buffer_length", default=int(1e6), type=int)
     parser.add_argument("--n_episodes", default=50000, type=int)
