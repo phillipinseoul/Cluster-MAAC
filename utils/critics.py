@@ -10,6 +10,7 @@ from utils.clustering import cluster_agents
 from .cluster_critics import ClusterCritic
 
 cluster_critic_lr = 0.001
+USE_CLUSTER = True
 
 class AttentionCritic(nn.Module):
     """
@@ -85,10 +86,6 @@ class AttentionCritic(nn.Module):
                                self.value_extractors, self.critic_encoders]
 
         '''Init ClusterCritic for cluster attention (05/27 Yuseung)'''
-
-                        
-
-
         '''TODO: implememt clustering (05/28)'''
         self.cluster_list = clster_list
 
@@ -306,13 +303,16 @@ class AttentionCritic(nn.Module):
         for i_head in range(len(all_head_selectors)):
             for i in range(len(self.agents)):
                 tot_attention_values[i]
-        
-        """
-        F.softmax(cluster)
-        agent_attention_values
-        clst_attention_values
-        """
 
+        '''TODO: How should combine logits?'''
+        # tot_attend_logits = (agent_attend_logits + clst_logits_extended) / 2.0
+        tot_attend_logits = agent_attend_logits
+
+        if not USE_CLUSTER:
+            tot_attention_values = agent_attention_values
+            tot_attend_probs = agent_attend_probs
+            tot_attend_logits = agent_attend_logits
+        
         # calculate Q per agent (considering clusters)
         all_rets = []
 
