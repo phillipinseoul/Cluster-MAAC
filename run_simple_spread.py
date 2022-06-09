@@ -53,6 +53,7 @@ def run(config):
     env = make_parallel_env(config.env_id, config.n_rollout_threads, run_num)
 
     model = AttentionSAC.init_from_env(env,
+                                       env_id=config.env_id,
                                        tau=config.tau,
                                        pi_lr=config.pi_lr,
                                        q_lr=config.q_lr,

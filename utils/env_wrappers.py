@@ -98,13 +98,6 @@ class SubprocVecEnv(VecEnv):
                 plt.imshow(np.squeeze(img))
                 plt.savefig(os.path.join(render_path, 'episode_%d.png' % ep))
             i += 1
-        
-        '''
-        self.remotes[0].send(('render', None))
-        img = self.remotes[0].recv()
-        plt.imshow(np.squeeze(img))
-        plt.savefig('rendered_env.png')
-        '''
 
     def close(self):
         if self.closed:

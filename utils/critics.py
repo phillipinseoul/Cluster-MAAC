@@ -276,9 +276,7 @@ class AttentionCritic(nn.Module):
                 # tot_attend_prob = clst_probs_extended[agentN][i_heads] # 2. cluster attention only; consider only the cluster attention
 
                 # tot_attend_prob = F.softmax(tot_attend_prob, dim=2)
-
                 tot_attend_prob = agent_attend_probs[agentN][i_heads] # 3. mix attention values 
-
                 tot_attend_probs[agentN].append(tot_attend_prob)
 
         # calculate tot_attention_value with tot_attend_logits, tot_attend_probs

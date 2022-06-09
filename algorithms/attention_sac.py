@@ -4,7 +4,7 @@ from torch.optim import Adam
 from utils.misc import soft_update, hard_update, enable_gradients, disable_gradients
 from utils.agents import AttentionAgent
 from utils.critics import AttentionCritic
-from utils.clustering import init_cluster_list
+from utils.clustering import init_cluster_list, init_cluster_list_collab
 
 # Please fix the values in 'simple_tag.py' manually
 PREY = 12 # Good agents
@@ -254,7 +254,7 @@ class AttentionSAC(object):
         torch.save(save_dict, filename)
 
     @classmethod
-    def init_from_env(cls, env, gamma=0.95, tau=0.01,
+    def init_from_env(cls, env, env_id, gamma=0.95, tau=0.01,
                       pi_lr=0.01, q_lr=0.01,
                       reward_scale=10.,
                       pol_hidden_dim=128, critic_hidden_dim=128, attend_heads=4,
@@ -279,11 +279,10 @@ class AttentionSAC(object):
         '''init clustering list divided by each agent's role (Taeyeong) '''
 
         # [Important] adjust number of cluster
-
-
-
-
-        cluster_lists = init_cluster_list(env, PREY, PREDATOR, n_obs = OBSTACLES)
+        if env_id == "simple_tag":
+            cluster_lists = init_cluster_list(env, PREY, PREDATOR, n_obs = OBSTACLES)
+        elif env_id == "simple_spread":
+            cluster_lists = init_cluster_list_collab(env, len(sa_size), n_obs = OBSTACLES)
 
         init_dict = {'gamma': gamma, 'tau': tau,
                      'pi_lr': pi_lr, 'q_lr': q_lr,
