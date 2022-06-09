@@ -25,7 +25,7 @@ def make_parallel_env(env_id, n_rollout_threads, seed):
         return SubprocVecEnv([get_env_fn(i) for i in range(n_rollout_threads)])
 
 def run(config):
-    model_dir = Path('./models') / config.env_id / config.model_name
+    model_dir = Path('../maac-MPE/models') / config.env_id / config.model_name
     
     if not model_dir.exists():
         run_num = 1

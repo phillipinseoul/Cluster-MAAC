@@ -272,9 +272,12 @@ class AttentionCritic(nn.Module):
                 # clst_idx = [clst for clst, clst_agents in self.cluster_list.items() if agentN in clst_agents][0]
 
                 '''TODO: How to add attend_log of agents and cluster?'''
-                # tot_attend_prob = agent_attend_probs[agentN][i_heads] * torch.exp(1 + clst_probs_extended[agentN][i_heads])
-                tot_attend_prob = clst_probs_extended[agentN][i_heads] # cluster attention only; consider only the cluster attention
-                tot_attend_prob = F.softmax(tot_attend_prob, dim=2)
+                # tot_attend_prob = agent_attend_probs[agentN][i_heads] * torch.exp(1 + clst_probs_extended[agentN][i_heads]) # 1. mix attention prob
+                # tot_attend_prob = clst_probs_extended[agentN][i_heads] # 2. cluster attention only; consider only the cluster attention
+
+                # tot_attend_prob = F.softmax(tot_attend_prob, dim=2)
+
+                tot_attend_prob = agent_attend_probs[agentN][i_heads] # 3. mix attention values 
 
                 tot_attend_probs[agentN].append(tot_attend_prob)
 
@@ -286,10 +289,31 @@ class AttentionCritic(nn.Module):
             for i, a_i, selector in zip(range(len(self.agents)), self.agents, curr_head_selectors):
                 keys = [k for j, k in enumerate(curr_head_keys) if j != a_i]
                 values = [v for j, v in enumerate(curr_head_values) if j != a_i]
-
+                
+                """
+                # For debugging
+                a = torch.stack(values).permute(1, 2, 0)
+                b = tot_attend_probs[i][i_head]
+                c = a * b
+                d = c.sum(dim=2)
+                """
+                
+                # tot_attention_value = (torch.stack(values).permute(1, 2, 0) *
+                #                     tot_attend_probs[i][i_head]).sum(dim=2)
                 tot_attention_value = (torch.stack(values).permute(1, 2, 0) *
-                                    tot_attend_probs[i][i_head]).sum(dim=2)
+                                    agent_attend_probs[i][i_head] * 
+                                    clst_probs_extended[i][i_head]).sum(dim=2)
                 tot_attention_values[i].append(tot_attention_value)
+
+        for i_head in range(len(all_head_selectors)):
+            for i in range(len(self.agents)):
+                tot_attention_values[i]
+        
+        """
+        F.softmax(cluster)
+        agent_attention_values
+        clst_attention_values
+        """
 
         # calculate Q per agent (considering clusters)
         all_rets = []
