@@ -40,9 +40,6 @@ class AttentionCritic(nn.Module):
         self.critics = nn.ModuleList()
         self.state_encoders = nn.ModuleList()
 
-        '''add self.critic_buffer (yuseung, 05/20)'''
-        # self.critic_buffer = CriticBuffer(attend_heads=attend_heads)
-
         # iterate over agents
         for sdim, adim in sa_sizes:
             idim = sdim + adim
@@ -86,13 +83,12 @@ class AttentionCritic(nn.Module):
                                self.value_extractors, self.critic_encoders]
 
         '''Init ClusterCritic for cluster attention (05/27 Yuseung)'''
-        '''TODO: implememt clustering (05/28)'''
         self.cluster_list = clster_list
 
         self.cluster_critic = ClusterCritic(sa_sizes=self.sa_sizes,
                                             cluster_list=self.cluster_list,
                                             n_clusters=self.n_clusters,
-                                            hidden_dim=32,
+                                            hidden_dim=hidden_dim,
                                             attend_heads=self.attend_heads)
 
         self.cluster_critic_optimizer = torch.optim.Adam(self.cluster_critic.parameters(),
@@ -141,15 +137,9 @@ class AttentionCritic(nn.Module):
                 # scale dot-products by size of key (from Attention is All You Need)
                 scaled_attend_logits = attend_logits / np.sqrt(keys[0].shape[1])
 
-                '''add critic buffer (yuseung, 05/20)'''
-                # prev_attend = self.critic_buffer.get_prev_attend(i_head, scaled_attend_logits.detach())
-                # if prev_attend is not None:
-                #     scaled_attend_logits = 0.2 * prev_attend + 0.8 * scaled_attend_logits
-
                 attend_weights = F.softmax(scaled_attend_logits, dim=2)
 
-                attention_values = (torch.stack(values).permute(1, 2, 0) *
-                                attend_weights).sum(dim=2)
+                attention_values = (torch.stack(values).permute(1, 2, 0) * attend_weights).sum(dim=2)
 
                 all_attention_values[i].append(attention_values)
                 all_attend_logits[i].append(attend_logits)
@@ -203,24 +193,24 @@ class AttentionCritic(nn.Module):
         # calculate cluster attention before calculating Q value (05/27, Yuseung)
         clst_attention_values, clst_attend_logits, clst_attend_probs = self.cluster_critic(agent_inps)
 
-        ########### TODO: extend the cluster attentions to agent attentions  ###########
+        ########### extend the cluster attentions to agent attentions  ###########
         clst_logits_extended = [[] for i in range(self.nagents)]
         clst_probs_extended = [[] for i in range(self.nagents)]
+        clst_values_extended = [[] for i in range(self.nagents)]
 
-        # templated for attend_logits, attend_probs
+        # templates for attend_logits, attend_probs, attend_values
         temp_logits = torch.ones_like(agent_attend_logits[0][0])
         temp_probs = torch.ones_like(agent_attend_probs[0][0])
+        temp_values = torch.ones_like(agent_attention_values[0][0])
+
+        # print(f'agent_attention_values[0][0]: {agent_attention_values[0][0].shape}')
+        # print(f'clst_attention_values[0][0]: {clst_attention_values[0][0].shape}')
 
         for i in range(self.nagents):
-            for j in range(self.attend_heads):
-                # Bug!) pushing the same reference into the list
-                # -> all tensors are actually the same single tensor, so updates are shared
-                # clst_logits_extended[i].append(temp_logits)
-                # clst_probs_extended[i].append(temp_probs)
-                
-                # must copy and append
+            for _ in range(self.attend_heads):
                 clst_logits_extended[i].append(temp_logits.detach().clone())
                 clst_probs_extended[i].append(temp_probs.detach().clone())
+                clst_values_extended[i].append(temp_values.detach().clone())
 
         # Extend the cluster attentions to agent attentions 
         # (in order to match the dimensions for later computation: combine agents & cluster attention)
@@ -231,21 +221,14 @@ class AttentionCritic(nn.Module):
                     # weight between two agents in the same clster: 1.0
                     if current_clst == other_clst:
                         continue
-
-                    # print(f"[{i_head}] cluster change : cluster#{current_clst} -> #{other_clst}")
-
-                    # exclude myself from Attention vector index
-                    # ex) 15 agents -> attention vec size 14
                     if current_clst < other_clst:
                         other_clst -= 1
 
                     for current_agent in c_agents:
                         for other_agent in other_clst_agents:
                             assert other_agent not in self.cluster_list[current_clst]
-                            # print(f"attention btw agent#{current_agent} ~ #{other_agent}")
 
-                            # Q. What is this for?
-                            # > For agents that appear after me, exclude myself from attention vector index value by subtracting 1
+                            # for agents that appear after me, exclude myself from attention vector index value by subtracting 1
                             if current_agent < other_agent:
                                 other_agent -= 1
 
@@ -254,7 +237,7 @@ class AttentionCritic(nn.Module):
                             # clst_probs_extended[a_c][i_head][:, :, c_agent] = clst_attend_probs[clst_idx][i_head][:, :, other_clst]
                             clst_probs_extended[current_agent][i_head][:, :, other_agent] = clst_attend_probs[current_clst][i_head][:, :, other_clst]
                             clst_logits_extended[current_agent][i_head][:, :, other_agent] = clst_attend_logits[current_clst][i_head][:, :, other_clst]
-                            # Why not 1? Shouldn't clst_probs_extended[0][0][0][0][0~4] be changed and stay as 1?
+                            clst_values_extended[current_agent][i_head]
         ########### TODO: extend the cluster attentions to agent attentions  ###########
 
         '''add agent_attention_values and clst_attention_values (05/28)'''

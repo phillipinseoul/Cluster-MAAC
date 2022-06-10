@@ -11,7 +11,7 @@ class ClusterCritic(nn.Module):
     attend over the other CLUSTERS' encoded observations and actions.
     """
     def __init__(self, sa_sizes, cluster_list, n_clusters=5,
-                    hidden_dim=32, norm_in=True, attend_heads=1):
+                    hidden_dim=32, norm_in=True, attend_heads=4):
         """
         Inputs:
             sa_sizes (list of (int, int)): Size of state and action spaces per
@@ -125,8 +125,7 @@ class ClusterCritic(nn.Module):
 
                 attend_weights = F.softmax(scaled_attend_logits, dim=2)
 
-                attention_values = (torch.stack(values).permute(1, 2, 0) *
-                                        attend_weights).sum(dim=2)
+                attention_values = (torch.stack(values).permute(1, 2, 0) * attend_weights).sum(dim=2)
 
                 clst_attention_values[i].append(attention_values)
                 clst_attend_logits[i].append(attend_logits)
