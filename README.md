@@ -29,7 +29,7 @@ pip install -e .
 #### Warning! Running on SSH Server without GUI
 * Write 'xvfb-run -a' before your commands.
 ```shell
-xvfb-run -a python run_simple_tag.py ex --use_gpu
+xvfb-run -a python run_simple_tag.py ex --clst_ratio 0.5 --use_gpu
 ```
 
 #### 1. Run Simple Tag 

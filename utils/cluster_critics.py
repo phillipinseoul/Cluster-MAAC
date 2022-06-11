@@ -34,13 +34,7 @@ class ClusterCritic(nn.Module):
         self.c_critics = nn.ModuleList()
         self.c_state_encoders = nn.ModuleList()     # encoders for states of each cluster
 
-        '''
-        iterate over clusters (05/23, yuseung)
-        '''
-        # assert self.nagents % 5 == 0, 'nagents should be a multiple of 5'
-
         for clst in self.cluster_list.values():
-            # print(sa_sizes(clst[0]))
             sdim, adim = sa_sizes[clst[0]]            # WARNING: sdim, adim of each agent in a cluster should be equal
             
             # extend dim by the number of agents
@@ -77,7 +71,6 @@ class ClusterCritic(nn.Module):
         self.c_value_extractors = nn.ModuleList()
 
         for i in range(attend_heads):
-             # (5/24) For clusters
             self.c_key_extractors.append(nn.Linear(hidden_dim, attend_dim, bias=False))
             self.c_selector_extractors.append(nn.Linear(hidden_dim, attend_dim, bias=False))
             self.c_value_extractors.append(nn.Sequential(nn.Linear(hidden_dim, attend_dim), nn.LeakyReLU()))
@@ -106,6 +99,7 @@ class ClusterCritic(nn.Module):
         clst_attention_values = [[] for _ in range(len(cluster_list))]
         clst_attend_logits = [[] for _ in range(len(cluster_list))]
         clst_attend_probs = [[] for _ in range(len(cluster_list))]
+        clst_scaled_logits = [[] for _ in range(len(cluster_list))]
 
         # calculate attention per head
         for curr_head_keys, curr_head_values, curr_head_selectors in zip(keyHeads, valueHeads, queryHeads):
@@ -130,8 +124,10 @@ class ClusterCritic(nn.Module):
                 clst_attention_values[i].append(attention_values)
                 clst_attend_logits[i].append(attend_logits)
                 clst_attend_probs[i].append(attend_weights)
+                clst_scaled_logits[i].append(scaled_attend_logits)
 
-        return clst_attention_values, clst_attend_logits, clst_attend_probs
+        # return clst_attention_values, clst_attend_logits, clst_attend_probs, scaled_attend_logits
+        return clst_scaled_logits
 
     def forward(self, inps, return_q=True, return_all_q=False,
                 regularize=False, return_attend=False, logger=None, niter=0):

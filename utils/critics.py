@@ -6,11 +6,9 @@ import numpy as np
 from itertools import chain
 
 from utils.clustering import cluster_agents
-# from .critic_buffer import CriticBuffer
 from .cluster_critics import ClusterCritic
 
 cluster_critic_lr = 0.001
-USE_CLUSTER = False
 
 class AttentionCritic(nn.Module):
     """
@@ -19,7 +17,7 @@ class AttentionCritic(nn.Module):
     observations and actions.
     """
     def __init__(self, sa_sizes, n_clusters=5,
-                    hidden_dim=32, norm_in=True, attend_heads=1, clster_list= None):
+                    hidden_dim=32, norm_in=True, attend_heads=1, clster_list=None, clst_attention_ratio=0.5):
         """
         Inputs:
             sa_sizes (list of (int, int)): Size of state and action spaces per
@@ -35,6 +33,7 @@ class AttentionCritic(nn.Module):
         self.n_clusters = n_clusters
         self.nagents = len(sa_sizes)
         self.attend_heads = attend_heads
+        self.clst_attention_ratio = clst_attention_ratio
 
         self.critic_encoders = nn.ModuleList()
         self.critics = nn.ModuleList()
@@ -91,10 +90,6 @@ class AttentionCritic(nn.Module):
                                             hidden_dim=hidden_dim,
                                             attend_heads=self.attend_heads)
 
-        self.cluster_critic_optimizer = torch.optim.Adam(self.cluster_critic.parameters(),
-                                                        lr=cluster_critic_lr,
-                                                        weight_decay=1e-3)
-
     def shared_parameters(self):
         """
         Parameters shared across agents and reward heads
@@ -114,7 +109,7 @@ class AttentionCritic(nn.Module):
     """
     queryHeads : list of query values for each attention head (list of list of queries)
     """
-    def calculateAttention(self, agents, queryHeads, keyHeads, valueHeads):
+    def calculateAttention(self, agents, queryHeads, keyHeads, valueHeads, clst_scaled_logits):
         all_attention_values = [[] for _ in range(len(agents))]
         all_attend_logits = [[] for _ in range(len(agents))]
         all_attend_probs = [[] for _ in range(len(agents))]
@@ -128,14 +123,16 @@ class AttentionCritic(nn.Module):
                 keys = [k for j, k in enumerate(curr_head_keys) if j != a_i]
                 values = [v for j, v in enumerate(curr_head_values) if j != a_i]
 
-                '''TODO: implement a pipeline to consider N previous states for attention'''
-
                 # calculate attention across agents
                 attend_logits = torch.matmul(selector.view(selector.shape[0], 1, -1),
                                                 torch.stack(keys).permute(1, 2, 0))
 
                 # scale dot-products by size of key (from Attention is All You Need)
                 scaled_attend_logits = attend_logits / np.sqrt(keys[0].shape[1])
+
+                ################# add cluster attention! (06/10 Yuseung) #################
+                scaled_attend_logits = self.clst_attention_ratio * clst_scaled_logits[a_i][i_head] + (1 - self.clst_attention_ratio) * scaled_attend_logits
+                ################# add cluster attention! (06/10 Yuseung) #################
 
                 attend_weights = F.softmax(scaled_attend_logits, dim=2)
 
@@ -171,7 +168,6 @@ class AttentionCritic(nn.Module):
         inps = [torch.cat((s, a), dim=1) for s, a in inps]
 
         '''step 1) encode (states, actions) of each agent'''
-
         # extract state-action encoding for each agent
         sa_encodings = [encoder(inp) for encoder, inp in zip(self.critic_encoders, inps)]
         # extract state encoding for each agent that we're returning Q for
@@ -184,33 +180,22 @@ class AttentionCritic(nn.Module):
         all_head_selectors = [[sel_ext(enc) for i, enc in enumerate(s_encodings) if i in agents]
                               for sel_ext in self.selector_extractors]
 
-        # calculate agents attention
-        agent_attention_values, agent_attend_logits, agent_attend_probs = self.calculateAttention(agents, 
-                                                                                            all_head_selectors, 
-                                                                                            all_head_keys, 
-                                                                                            all_head_values)
 
-        # calculate cluster attention before calculating Q value (05/27, Yuseung)
-        clst_attention_values, clst_attend_logits, clst_attend_probs = self.cluster_critic(agent_inps)
+        ###########  calculate cluster attention before calculating Q value (05/27, Yuseung) ########### 
+        clst_scaled_logits = self.cluster_critic(agent_inps)
 
         ########### extend the cluster attentions to agent attentions  ###########
-        clst_logits_extended = [[] for i in range(self.nagents)]
-        clst_probs_extended = [[] for i in range(self.nagents)]
-        clst_values_extended = [[] for i in range(self.nagents)]
+        clst_scaled_logits_extended = [[] for i in range(self.nagents)]
 
         # templates for attend_logits, attend_probs, attend_values
-        temp_logits = torch.ones_like(agent_attend_logits[0][0])
-        temp_probs = torch.ones_like(agent_attend_probs[0][0])
-        temp_values = torch.ones_like(agent_attention_values[0][0])
-
-        # print(f'agent_attention_values[0][0]: {agent_attention_values[0][0].shape}')
-        # print(f'clst_attention_values[0][0]: {clst_attention_values[0][0].shape}')
+        temp_selector = all_head_selectors[0][0]
+        temp_keys = [k for j, k in enumerate(all_head_keys[0]) if j != 0]
+        scaled_logit = torch.matmul(temp_selector.view(temp_selector.shape[0], 1, -1), torch.stack(temp_keys).permute(1, 2, 0))
+        temp_scaled_logits = torch.ones_like(scaled_logit)
 
         for i in range(self.nagents):
             for _ in range(self.attend_heads):
-                clst_logits_extended[i].append(temp_logits.detach().clone())
-                clst_probs_extended[i].append(temp_probs.detach().clone())
-                clst_values_extended[i].append(temp_values.detach().clone())
+                clst_scaled_logits_extended[i].append(temp_scaled_logits.detach().clone())
 
         # Extend the cluster attentions to agent attentions 
         # (in order to match the dimensions for later computation: combine agents & cluster attention)
@@ -228,66 +213,16 @@ class AttentionCritic(nn.Module):
                         for other_agent in other_clst_agents:
                             assert other_agent not in self.cluster_list[current_clst]
 
-                            # for agents that appear after me, exclude myself from attention vector index value by subtracting 1
-                            if current_agent < other_agent:
+                            if current_agent < other_agent:         # for agents that appear after me, exclude myself from attention vector index value by subtracting 1
                                 other_agent -= 1
+                            clst_scaled_logits_extended[current_agent][i_head][:, :, other_agent] = clst_scaled_logits[current_clst][i_head][:, :, other_clst]
 
-                            # Q. just assign? not add? -> each cell is accessed and copied only once
-                            # clst_logits_extended[a_c][i_head][:, :, c_agent] = clst_attend_logits[clst_idx][i_head][:, :, other_clst]
-                            # clst_probs_extended[a_c][i_head][:, :, c_agent] = clst_attend_probs[clst_idx][i_head][:, :, other_clst]
-                            clst_probs_extended[current_agent][i_head][:, :, other_agent] = clst_attend_probs[current_clst][i_head][:, :, other_clst]
-                            clst_logits_extended[current_agent][i_head][:, :, other_agent] = clst_attend_logits[current_clst][i_head][:, :, other_clst]
-                            clst_values_extended[current_agent][i_head]
-        ########### TODO: extend the cluster attentions to agent attentions  ###########
-
-        '''add agent_attention_values and clst_attention_values (05/28)'''
-        # tot_attention_values = []
-        tot_attend_logits = [[] for i in range(self.nagents)]
-        tot_attend_probs = [[] for i in range(self.nagents)]
-        tot_attention_values = [[] for i in range(self.nagents)]
-
-        # Combine agents & cluster attention - use cluster attention_probs as multipliers to the agent attention_probs
-        for i_heads in range(self.attend_heads):
-            for agentN in self.agents:
-                # clst_idx = [clst for clst, clst_agents in self.cluster_list.items() if agentN in clst_agents][0]
-
-                '''TODO: How to add attend_log of agents and cluster?'''
-                # tot_attend_prob = agent_attend_probs[agentN][i_heads] * torch.exp(1 + clst_probs_extended[agentN][i_heads]) # 1. mix attention prob
-                # tot_attend_prob = clst_probs_extended[agentN][i_heads] # 2. cluster attention only; consider only the cluster attention
-
-                # tot_attend_prob = F.softmax(tot_attend_prob, dim=2)
-                tot_attend_prob = agent_attend_probs[agentN][i_heads] # 3. mix attention values 
-                tot_attend_probs[agentN].append(tot_attend_prob)
-
-        # calculate tot_attention_value with tot_attend_logits, tot_attend_probs
-        for i_head, curr_head_keys, curr_head_values, curr_head_selectors in zip(
-                range(len(all_head_selectors)), all_head_selectors, all_head_keys, all_head_values):
-            
-            # iterate over agents
-            for i, a_i, selector in zip(range(len(self.agents)), self.agents, curr_head_selectors):
-                keys = [k for j, k in enumerate(curr_head_keys) if j != a_i]
-                values = [v for j, v in enumerate(curr_head_values) if j != a_i]
-                
-                # tot_attention_value = (torch.stack(values).permute(1, 2, 0) *
-                #                     tot_attend_probs[i][i_head]).sum(dim=2)
-                tot_attention_value = (torch.stack(values).permute(1, 2, 0) *
-                                    agent_attend_probs[i][i_head] * 
-                                    clst_probs_extended[i][i_head]).sum(dim=2)
-                                    
-                tot_attention_values[i].append(tot_attention_value)
-
-        for i_head in range(len(all_head_selectors)):
-            for i in range(len(self.agents)):
-                tot_attention_values[i]
-
-        '''TODO: How should combine logits?'''
-        # tot_attend_logits = (agent_attend_logits + clst_logits_extended) / 2.0
-        tot_attend_logits = agent_attend_logits  + clst_logits_extended
-
-        if not USE_CLUSTER:
-            tot_attention_values = agent_attention_values
-            tot_attend_probs = agent_attend_probs
-            tot_attend_logits = agent_attend_logits
+        # calculate agents attention
+        tot_attention_values, tot_attend_logits, tot_attend_probs = self.calculateAttention(agents, 
+                                                                                            all_head_selectors, 
+                                                                                            all_head_keys, 
+                                                                                            all_head_values,
+                                                                                            clst_scaled_logits_extended)
         
         # calculate Q per agent (considering clusters)
         all_rets = []
@@ -329,11 +264,3 @@ class AttentionCritic(nn.Module):
             return all_rets[0]
         else:
             return all_rets
-
-
-
-"""
-(5/24) Attention probability is important than the value itself? How one cluster should pay attention to the other group..
-ex) cluster A has high attention probability toward cluster B
--> amplify attention values of agents in A toward other agents in B, by multiplying certain factor 
-"""

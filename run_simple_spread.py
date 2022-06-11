@@ -11,6 +11,8 @@ from utils.buffer import ReplayBuffer
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from algorithms.attention_sac import AttentionSAC
 
+SEED = 0
+
 def make_parallel_env(env_id, n_rollout_threads, seed):
     def get_env_fn(rank):
         def init_env():
@@ -47,8 +49,8 @@ def run(config):
     render_dir = run_dir / 'rendered_images'
     os.makedirs(render_dir)
 
-    torch.manual_seed(run_num)
-    np.random.seed(run_num)
+    torch.manual_seed(SEED)
+    np.random.seed(SEED)
 
     env = make_parallel_env(config.env_id, config.n_rollout_threads, run_num)
 
@@ -61,7 +63,8 @@ def run(config):
                                        pol_hidden_dim=config.pol_hidden_dim,
                                        critic_hidden_dim=config.critic_hidden_dim,
                                        attend_heads=config.attend_heads,
-                                       reward_scale=config.reward_scale)
+                                       reward_scale=config.reward_scale,
+                                       clst_attention_ratio=config.clst_ratio)
 
     replay_buffer = ReplayBuffer(config.buffer_length, model.nagents,
                                  [obsp.shape[0] for obsp in env.observation_space],
@@ -120,7 +123,7 @@ def run(config):
                               a_ep_rew * config.episode_length, ep_i)
             reward_sum += a_ep_rew
         
-        logger.add_scalar('total_rewards', reward_sum, ep_i)
+        # logger.add_scalar('total_rewards', reward_sum, ep_i)
         logger.add_scalar('mean_rewards', reward_sum / len(ep_rews), ep_i)
 
         if ep_i % config.save_interval < config.n_rollout_threads:
@@ -164,6 +167,7 @@ if __name__ == '__main__':
     parser.add_argument("--gamma", default=0.99, type=float)
     parser.add_argument("--reward_scale", default=100., type=float)
     parser.add_argument("--use_gpu", action='store_true')
+    parser.add_argument("--clst_ratio", default=0.5, type=float)
 
     config = parser.parse_args()
 
