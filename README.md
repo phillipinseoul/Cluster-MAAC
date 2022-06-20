@@ -1,4 +1,7 @@
 # C-MAAC: Cluster-based Multi-Actor Attention Critic for Reinforcement Learning
+[Presentation Video](https://www.youtube.com/watch?v=KY6Zewa-yrA) | [Report](https://github.com/CS470RL/maac-MPE/blob/master/Cluster_based_MAAC_Final_Report.pdf)
+
+
 Project for KAIST CS470: Introduction to Artifical Intelligence (Spring 22') by Hyuncheol Park, Taeyeong Lee, Yuseung Lee and Jongjun Park. This work is an extension of the [original MAAC (Iqbal et al., ICML 2019)](https://arxiv.org/abs/1810.02912) and the baseline codes for MAAC was forked from the [official repository](https://github.com/shariqiqbal2810/MAAC).
 
 ![pipeline](images/pipeline.png)
