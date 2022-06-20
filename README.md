@@ -1,5 +1,7 @@
-# C-MAAC: Cluster-based Actor-Attention-Critic for Multi-Agent Reinforcement Learning (Temporary)
+# C-MAAC: Cluster-based Multi-Actor Attention Critic for Reinforcement Learning
 Project for KAIST CS470: Introduction to Artifical Intelligence (Spring 22') by Hyuncheol Park, Taeyeong Lee, Yuseung Lee and Jongjun Park. This work is an extension of the [original MAAC (Iqbal et al., ICML 2019)](https://arxiv.org/abs/1810.02912) and the baseline codes for MAAC was forked from the [official repository](https://github.com/shariqiqbal2810/MAAC).
+
+Abstract: Multi-Actor-Attention-Critic (MAAC) proposed an efficient form of an actor-critic algorithm for multi-agent environments by integrating it with the attention mechanism from [10]. In this paper, we test MAAC on two MPE environments Simple Tag and Simple Spread, then propose an extension of this method, C-MAAC, by introducing a new component Cluster Critic into the original critic pipeline. The experimental results show that our method fails to achieve superior results compared to the original MAAC, but we provide an analysis of the possible ways to improve the performance. Code is available at https://github.com/CS470RL/maac-MPE.
 
 ## Requirements
 #### 1. Install the packages in requirement.txt
